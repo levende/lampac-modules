@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <OutputType>library</OutputType>
+    <PublishSingleFile>true</PublishSingleFile> 
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Shared">
+      <HintPath>..\..\Shared.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Engine">
+      <HintPath>..\..\Shared.Engine.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Jackett">
+      <HintPath>..\..\Shared.Jackett.dll</HintPath>
+    </Reference>
+    <Reference Include="Shared.Model">
+      <HintPath>..\..\Shared.Model.dll</HintPath>
+    </Reference>
+    <Reference Include="Unidecode.NET">
+      <HintPath>libs\Unidecode.NET.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

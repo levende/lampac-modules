@@ -1,0 +1,1 @@
+The minimum supported version of Lampac is **142.3** *(24.05.2025)*

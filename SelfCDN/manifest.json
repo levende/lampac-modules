@@ -1,0 +1,10 @@
+{
+  "enable": false,
+  "version": 3,
+  "index": 1,
+  "namespace": "SelfCDN",
+  "initspace": "ModInit",
+  "online": "OnlineApi",
+  "initialization": "InitializationApi",
+  "references": [ "libs/Unidecode.NET.dll" ]
+}
