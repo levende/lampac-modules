@@ -1,0 +1,66 @@
+# ===== Node / Angular =====
+frontend/node_modules/
+frontend/dist/
+frontend/.tmp/
+frontend/.angular/
+frontend/**/*.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/package-lock.json
+frontend/.env
+
+# Angular build artifacts
+frontend/build/
+frontend/out-tsc/
+frontend/coverage/
+frontend/test-output/
+
+# ===== .NET / C# =====
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.dbmdl
+
+# Visual Studio files
+.vscode/
+.idea/
+.vs/
+*.sln.ide
+
+# Build results
+*.dll
+*.exe
+*.app
+*.pdb
+
+# Others
+*.nupkg
+*.snupkg
+
+# .NET Secrets
+secrets.json
+
+# ===== Docker =====
+build/.dockerignore
+docker-compose.override.yml
+**/volumes/
+**/data/
+
+# ===== Global / System files =====
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.swp
+
+# ===== Logs =====
+*.log
+logs/
+log/
+
+# ===== App Storage =====
+/data/
