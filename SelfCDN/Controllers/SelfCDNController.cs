@@ -226,7 +226,13 @@ namespace SelfCDN.Controllers
             }
 
             var yearMatch = Regex.Match(fileName, @"\b(19\d{2}|20\d{2})\b", RegexOptions.IgnoreCase);
-            return yearMatch.Success && int.Parse(yearMatch.Groups[1].Value) != queryYear;
+            if (yearMatch.Success)
+            {
+                int fileYear = int.Parse(yearMatch.Groups[1].Value);
+                return Math.Abs(fileYear - queryYear) > 1;
+            }
+
+            return false;
         }
 
         private EpisodeInfo ExtractEpisodeInfo(string fileName)
