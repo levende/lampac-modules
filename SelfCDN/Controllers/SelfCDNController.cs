@@ -41,7 +41,7 @@ namespace SelfCDN.Controllers
                 return Forbid();
             }
 
-            if (!fullPath.StartsWith(ModInit.StoragePath))
+            if (!fullPath.StartsWith(Path.GetFullPath(ModInit.StoragePath)))
             {
                 return Forbid();
             }
