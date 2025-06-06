@@ -26,54 +26,51 @@ namespace SelfCDN.Models
         {
             ConsoleLogger.Log("IsTitleMatch:");
             ConsoleLogger.Log($"Normalized file name: {normalizedFileName}");
-            ConsoleLogger.Log($"Normalized query title: {normalizedFileName}");
+            ConsoleLogger.Log($"Normalized query title: {normalizedQueryTitle}");
 
-            // Filter out media-related terms and uploader names
+            // Split and filter file words, excluding irrelevant terms
             List<string> fileWords = normalizedFileName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 .Where(w => !Regex.IsMatch(w, @"^(bdrip|avc|h264|h265|x264|x265|web|webrip|dl|by|bluray|1080p|720p|rip|4k|uhd|dalemake)$", RegexOptions.IgnoreCase))
                 .ToList();
 
-            // Keep all query words, exclude stop words
+            // Split and filter query words, excluding common words like "the"
             List<string> queryWords = normalizedQueryTitle.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 .Where(w => !string.Equals(w, "the", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             int matchedWords = 0;
-            int fileIndex = 0;
 
+            // For each query word, find a matching file word (non-sequential)
             foreach (var queryWord in queryWords)
             {
-                if (fileIndex >= fileWords.Count)
-                    break;
+                bool foundMatch = false;
+                int maxDistance = Math.Max(1, (int)Math.Ceiling(queryWord.Length * 0.3)); // Increase tolerance to 30%
 
-                int maxDistance = Math.Max(1, (int)Math.Ceiling(Math.Max(queryWord.Length, fileWords.Any() ? fileWords.Min(w => w.Length) : 1) * 0.25));
-                if (string.Equals(fileWords[fileIndex], queryWord, StringComparison.OrdinalIgnoreCase) ||
-                    LevenshteinDistance(queryWord, fileWords[fileIndex], 0.25) <= maxDistance)
+                foreach (var fileWord in fileWords)
                 {
-                    double distance = string.Equals(fileWords[fileIndex], queryWord, StringComparison.OrdinalIgnoreCase)
-                        ? 0
-                        : LevenshteinDistance(queryWord, fileWords[fileIndex], 0.25);
-                    ConsoleLogger.Log($"Matched '{queryWord}' to '{fileWords[fileIndex]}' at index {fileIndex} (Levenshtein distance: {distance})");
-                    matchedWords++;
-                    fileIndex++;
+                    if (string.Equals(fileWord, queryWord, StringComparison.OrdinalIgnoreCase) ||
+                        LevenshteinDistance(queryWord, fileWord, 0.3) <= maxDistance)
+                    {
+                        double distance = string.Equals(fileWord, queryWord, StringComparison.OrdinalIgnoreCase)
+                            ? 0
+                            : LevenshteinDistance(queryWord, fileWord, 0.3);
+                        ConsoleLogger.Log($"Matched '{queryWord}' to '{fileWord}' (Levenshtein distance: {distance})");
+                        matchedWords++;
+                        fileWords.Remove(fileWord); // Prevent re-matching the same word
+                        foundMatch = true;
+                        break;
+                    }
                 }
-                else
+
+                if (!foundMatch)
                 {
-                    ConsoleLogger.Log($"No match for '{queryWord}' at index {fileIndex}");
-                    fileIndex++;
+                    ConsoleLogger.Log($"No match for '{queryWord}'");
                 }
             }
 
             ConsoleLogger.Log($"Matched words: {matchedWords}/{queryWords.Count}");
 
-            // For single-word queries, require exact match or distance <= 1
-            if (queryWords.Count == 1)
-            {
-                return matchedWords == 1 &&
-                    (string.Equals(queryWords[0], fileWords[0], StringComparison.OrdinalIgnoreCase)
-                    || LevenshteinDistance(queryWords[0], fileWords[0], 0.25) <= 1);
-            }
-
+            // Require 75% of query words to match, or at least 1 for single-word queries
             return matchedWords >= Math.Max(1, (int)Math.Ceiling(queryWords.Count * 0.75));
         }
 
