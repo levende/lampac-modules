@@ -12,7 +12,7 @@ namespace SelfCDN
         {
             const string plugin = "SelfCDN";
 
-            var url = ModInit.Settings.overridehost;
+            var url = ModInit.BalancerSettings.overridehost;
 
             if (string.IsNullOrEmpty(url))
             {
@@ -21,7 +21,7 @@ namespace SelfCDN
 
             return new List<(string name, string url, string plugin, int index)>
             {
-                (ModInit.Settings.displayname ?? ModInit.Settings.plugin, url, plugin, 0)
+                (ModInit.BalancerSettings.displayname ?? ModInit.BalancerSettings.plugin, url, plugin, 0)
             };
         }
     }

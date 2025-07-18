@@ -1,0 +1,23 @@
+﻿using System.Text.Json.Serialization;
+
+namespace SelfCdn.Registry.Models
+{
+    internal class MediaMetadata
+    {
+        [JsonPropertyName("Title")]
+        public string Title { get; set; }
+
+        [JsonPropertyName("SeasonNumber")]
+        public int? SeasonNumber { get; set; }
+
+        [JsonPropertyName("EpisodeNumber")]
+        public int? EpisodeNumber { get; set; }
+
+        [JsonPropertyName("EpisodeName")]
+        public string EpisodeName { get; set; }
+
+        [JsonPropertyName("Year")]
+        public int? Year { get; set; }
+        public string FileName { get; set; }
+    }
+}

@@ -2,56 +2,64 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Lampac.Engine;
 using Shared.Model.Templates;
 using SelfCDN.Models;
+using SelfCdn.Registry.Parser;
 using SelfCDN.Templates;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text;
 
 namespace SelfCDN.Controllers
 {
     public class SelfCDNController : BaseController
     {
-        private const string CacheKeyPrefix = "SelfCDN:view:";
-
         private static readonly string UnknownTranslationId = string.Empty;
         private static readonly string UnknownTranslationName = string.Empty;
-
-        private readonly FileService _fileService;
-
-        public SelfCDNController()
-        {
-            _fileService = new FileService(ModInit.StoragePath, memoryCache);
-        }
 
         [Route("selfCDN/stream")]
         public ActionResult Stream(string path)
         {
-            if (string.IsNullOrWhiteSpace(path))
+            ConsoleLogger.Log($"Stream request: {path}");
+            try
             {
-                return Forbid();
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return Forbid();
+                }
+
+                byte[] decodedBytes = Convert.FromBase64String(path);
+                string decodedPath = Encoding.UTF8.GetString(decodedBytes);
+
+                if (!System.IO.File.Exists(decodedPath))
+                {
+                    return Forbid();
+                }
+
+                var isFileIndexed = ModInit.SelfCdnRegistry.Storage
+                    .Recognized
+                    .SelectMany(f => f.Value)
+                    .Any(i => i.FilePath.Equals(decodedPath, StringComparison.OrdinalIgnoreCase));
+
+                if (!isFileIndexed)
+                {
+                    return Forbid();
+                }
+
+                return File(System.IO.File.OpenRead(decodedPath), "application/octet-stream", true);
+            }
+            catch (Exception ex)
+            {
+                ConsoleLogger.Log("err");
+
+                ConsoleLogger.Log(ex.Message);
+                ConsoleLogger.Log(ex.StackTrace);
             }
 
-            string fullPath = Path.GetFullPath(Path.Combine(ModInit.StoragePath, path));
-
-            if (!System.IO.File.Exists(fullPath))
-            {
-                return Forbid();
-            }
-
-            if (!fullPath.StartsWith(Path.GetFullPath(ModInit.StoragePath)))
-            {
-                return Forbid();
-            }
-
-            if (!ModInit.VideoExtensions.Contains(Path.GetExtension(fullPath).ToLower()))
-            {
-                return Forbid();
-            }
-
-            return File(System.IO.File.OpenRead(fullPath), "application/octet-stream", true);
+            return Forbid();
         }
 
         [HttpGet]
@@ -98,185 +106,84 @@ namespace SelfCDN.Controllers
 
         private Task<MediaSearchResult> SearchMedia(MediaRequestParameters parameters)
         {
-            var cacheKey = $"{CacheKeyPrefix}{parameters.KinopoiskId}:{parameters.ImdbId}:{parameters.Title}";
-
-            if (hybridCache.TryGetValue(cacheKey, out MediaSearchResult cachedResult))
-            {
-                return Task.FromResult(cachedResult);
-            }
-
+            
             MediaSearchResult result = new MediaSearchResult();
-
-            var files = _fileService.GetVideoFiles();
-            if (files.Count == 0)
-            {
-                return Task.FromResult(result);
-            }
-
-            var normalizedTitles = new NormalizedTitles(
-                NormalizeTitle(parameters.Title),
-                NormalizeTitle(parameters.OriginalTitle));
 
             if (parameters.IsMovie)
             {
-                result.Movies = FindMovies(files, normalizedTitles, parameters.Year, parameters.UserId);
+                result.Movies = FindMovies((int)parameters.Id, parameters.UserId);
             }
             else
             {
-                result.Series = FindSeries(files, normalizedTitles, parameters.UserId);
-            }
-
-            if (result.HasContent)
-            {
-                hybridCache.Set(cacheKey, result, cacheTime(60));
+                result.Series = FindSeries((int)parameters.Id, parameters.UserId);
             }
 
             return Task.FromResult(result);
         }
 
-        private List<Movie> FindMovies(List<string> files, NormalizedTitles titles, int year, string userId)
+        private List<Movie> FindMovies(int tmdbId, string userId)
         {
-            return files.Select(file => ParseMovieFile(file, titles, year, userId))
-               .Where(movie => movie != null)
-               .ToList();
+            return ModInit.SelfCdnRegistry
+                .Storage
+                .Recognized
+                .Where(r =>
+                {
+                    var key = r.Key.Split(":");
+                    return key[0] == "movie" && key[1] == tmdbId.ToString();
+                })
+                .SelectMany(r => r.Value)
+                .Select(r => new Movie
+                {
+                    translation = new FileInfo(r.FilePath).Name,
+                    links = new List<(string Link, string Quality)> { (GetStreamUrl(r.FilePath, userId), QualityParser.Parse(r.FilePath)) }
+                }).ToList();
         }
 
-        private Dictionary<string, List<Voice>> FindSeries(List<string> files, NormalizedTitles titles, string userId)
+        private Dictionary<int, List<Voice>> FindSeries(long tmdbId, string userId)
         {
-            var episodesBySeason = files.Select(file => ParseEpisodeFile(file, titles, userId))
-               .Where(episode => episode != null)
-               .OrderBy(episode => episode.season)
-               .GroupBy(episode => NormalizeSeasonNumber(episode.season))
-               .ToDictionary(
-                   group => group.Key,
-                   group => new List<Voice>
-                   {
-                       new()
-                       {
-                           id = UnknownTranslationId,
-                           name = UnknownTranslationName,
-                           episodes = group.ToList()
-                       }
-                   });
-
-            return episodesBySeason;
-        }
-
-        private Movie ParseMovieFile(string filePath, NormalizedTitles titles, int queryYear, string userId)
-        {
-            var fileInfo = new FileInfo(filePath);
-            Console.WriteLine(filePath);
-
-            if (!IsTitleMatch(fileInfo.Name, titles) || HasYearMismatch(fileInfo.Name, queryYear))
-                return null;
-
-            var quality = QualityClassifier.Classify(fileInfo.Name, filePath);
-            var streamUrl = GetStreamUrl(filePath, userId);
-
-            return new Movie
-            {
-                translation = fileInfo.Name,
-                links = new List<(string Link, string Quality)> { (streamUrl, quality) }
-            };
-        }
-
-        private Serial ParseEpisodeFile(string filePath, NormalizedTitles titles, string userId)
-        {
-            var fileInfo = new FileInfo(filePath);
-
-            if (!IsTitleMatch(fileInfo.Name, titles))
-            {
-                return null;
-            }
-
-            var episodeInfo = ExtractEpisodeInfo(fileInfo.Name);
-            if (episodeInfo == null)
-            {
-                return null;
-            }
-
-            var quality = QualityClassifier.Classify(fileInfo.Name, filePath);
-            var streamUrl = GetStreamUrl(filePath, userId);
-
-            return new Serial
-            {
-                id = episodeInfo.EpisodeNumber,
-                season = episodeInfo.SeasonNumber,
-                links = new List<(string Link, string Quality)> { (streamUrl, quality) }
-            };
+            return ModInit.SelfCdnRegistry
+                .Storage
+                .Recognized
+                .Where(r =>
+                {
+                    var key = r.Key.Split(":");
+                    return key[0] == "tv" && key[1] == tmdbId.ToString();
+                })
+                .SelectMany(r => r.Value)
+                .Where(r => r.SeasonNumber.HasValue && r.EpisodeNumber.HasValue)
+                .GroupBy(r => r.SeasonNumber)
+                .OrderBy(g => g.Key)
+                .ToDictionary(
+                    group => group.Key.Value,
+                    group => new List<Voice>
+                    {
+                        new()
+                        {
+                            id = UnknownTranslationId,
+                            name = UnknownTranslationName,
+                            episodes = group
+                                .GroupBy(e => e.EpisodeNumber)
+                                .Select(g => g.First())
+                                .OrderBy(e => e.EpisodeNumber)
+                                .Select(e => new Serial
+                                {
+                                    id = e.EpisodeNumber.ToString(),
+                                    season = e.SeasonNumber.ToString(),
+                                    links = new List<(string Link, string Quality)> { (GetStreamUrl(e.FilePath, userId), QualityParser.Parse(e.FilePath)) }
+                                })
+                                .ToList(),
+                        }
+                    });
         }
 
         private string GetStreamUrl(string filePath, string userId)
         {
-            var relativePath = Path.GetRelativePath(ModInit.StoragePath, filePath).Replace("\\", "/");
-            return $"{host}/selfCDN/stream?path={Uri.EscapeDataString(relativePath)}&uid={Uri.EscapeDataString(userId)}";
+            byte[] bytes = Encoding.UTF8.GetBytes(filePath);
+            string base64 = Convert.ToBase64String(bytes);
+
+            return $"{host}/selfCDN/stream?path={Uri.EscapeDataString(base64)}&uid={Uri.EscapeDataString(userId)}&v=3";
         }
-
-        private bool IsTitleMatch(string fileName, NormalizedTitles titles)
-        {
-            var normalizedFileName = NormalizeTitle(Path.GetFileNameWithoutExtension(fileName));
-            return titles.Matches(normalizedFileName);
-        }
-
-        private bool HasYearMismatch(string fileName, int queryYear)
-        {
-            if (queryYear <= 0)
-            {
-                return false;
-            }
-
-            var yearMatch = Regex.Match(fileName, @"\b(19\d{2}|20\d{2})\b", RegexOptions.IgnoreCase);
-            if (yearMatch.Success)
-            {
-                int fileYear = int.Parse(yearMatch.Groups[1].Value);
-                return Math.Abs(fileYear - queryYear) > 1;
-            }
-
-            return false;
-        }
-
-        private EpisodeInfo ExtractEpisodeInfo(string fileName)
-        {
-            var match = Regex.Match(fileName,
-                @"(?:S(\d+)|Season\s*(\d+)).*?(?:E(\d+)|Episode\s*(\d+))",
-                RegexOptions.IgnoreCase);
-
-            if (!match.Success)
-            {
-                return null;
-            }
-
-            return new EpisodeInfo(
-                match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value,
-                match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value
-            );
-        }
-
-        private string NormalizeTitle(string title)
-        {
-            if (string.IsNullOrEmpty(title))
-            {
-                return string.Empty;
-            }
-
-            if (Transliterator.HasCyrillic(title))
-            {
-                title = Transliterator.Transliterate(title);
-            }
-
-            return Regex.Replace(title, @"[.\-_:'`]", " ")
-                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim().ToLower())
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Aggregate((a, b) => $"{a} {b}");
-        }
-
-        private string NormalizeSeasonNumber(string season)
-        {
-            var normalized = season.TrimStart('0');
-            return string.IsNullOrEmpty(normalized) ? "0" : normalized;
-        }
-
+        
         private ActionResult RenderMovies(MediaRequestParameters parameters, List<Movie> movies)
         {
             var template = new MovieTpl(parameters.Title, parameters.OriginalTitle);
@@ -295,14 +202,14 @@ namespace SelfCDN.Controllers
             return CreateResponse(new MovieTplWrapper(template), parameters.ReturnJson);
         }
 
-        private ActionResult RenderSeries(MediaRequestParameters parameters, Dictionary<string, List<Voice>> series)
+        private ActionResult RenderSeries(MediaRequestParameters parameters, Dictionary<int, List<Voice>> series)
         {
             return parameters.Season == -1
                 ? RenderSeasonList(parameters, series)
                 : RenderEpisodes(parameters, series);
         }
 
-        private ActionResult RenderSeasonList(MediaRequestParameters parameters, Dictionary<string, List<Voice>> series)
+        private ActionResult RenderSeasonList(MediaRequestParameters parameters, Dictionary<int, List<Voice>> series)
         {
             var template = new SeasonTpl(quality: string.Empty);
             var defaultArgs = BuildDefaultQueryArgs(parameters);
@@ -318,9 +225,22 @@ namespace SelfCDN.Controllers
             return CreateResponse(new SeasonTplWrapper(template), parameters.ReturnJson);
         }
 
-        private ActionResult RenderEpisodes(MediaRequestParameters parameters, Dictionary<string, List<Voice>> series)
+        private ActionResult RenderEpisodes(MediaRequestParameters parameters, Dictionary<int, List<Voice>> series)
         {
-            if (!series.TryGetValue(parameters.Season.ToString(), out var voices))
+            ConsoleLogger.Log(() =>
+            {
+                var json = JsonSerializer.Serialize(
+                    series,
+                    new JsonSerializerOptions
+                    {
+                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                        WriteIndented = true,
+                    });
+
+                return $"[SelfCdnController] series: {json}";
+            });
+
+            if (!series.TryGetValue(parameters.Season, out var voices))
             {
                 ConsoleLogger.Log($"Season {parameters.Season} not found.");
                 return Ok();
@@ -365,14 +285,12 @@ namespace SelfCDN.Controllers
         private EpisodeTpl BuildEpisodeTemplate(MediaRequestParameters parameters, Voice voice)
         {
             var template = new EpisodeTpl();
-            var episodes = voice.episodes.OrderBy(e => e.id);
-
-            foreach (var episode in episodes)
+            foreach (var episode in voice.episodes)
             {
                 var streamQuality = BuildStreamQualityTemplate(episode.links);
                 template.Append(
-                    $"{episode.id} серия",
-                    $"{parameters.Title ?? parameters.OriginalTitle} ({episode.id} серия)",
+                    $"S{episode.season}E{episode.id}",
+                    $"{parameters.Title ?? parameters.OriginalTitle} (S{episode.season}E{episode.id})",
                     parameters.Season.ToString(),
                     episode.id,
                     streamQuality.Firts().link,
@@ -387,7 +305,7 @@ namespace SelfCDN.Controllers
             var streamQuality = new StreamQualityTpl();
             foreach (var (link, quality) in links)
             {
-                streamQuality.Append(HostStreamProxy(ModInit.Settings, link), quality);
+                streamQuality.Append(HostStreamProxy(ModInit.BalancerSettings, link), quality);
             }
 
             return streamQuality;
@@ -395,7 +313,8 @@ namespace SelfCDN.Controllers
 
         private string BuildDefaultQueryArgs(MediaRequestParameters parameters)
         {
-            return $"&imdb_id={parameters.ImdbId}" +
+            return $"&id={parameters.Id}" +
+                $"&imdb_id={parameters.ImdbId}" +
                 $"&kinopoisk_id={parameters.KinopoiskId}" +
                 $"&title={System.Web.HttpUtility.UrlEncode(parameters.Title)}" +
                 $"&original_title={System.Web.HttpUtility.UrlEncode(parameters.OriginalTitle)}" +

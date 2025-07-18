@@ -6,9 +6,17 @@ namespace SelfCDN
     {
         public static void Log(string message)
         {
-            if (ModInit.IsLogEnabled)
+            if (ModInit.ModuleSettings.IsLogEnabled == true)
             {
                 Console.WriteLine(message);
+            }
+        }
+
+        public static void Log(Func<string> messageFunc)
+        {
+            if (ModInit.ModuleSettings.IsLogEnabled == true)
+            {
+                Console.WriteLine(messageFunc());
             }
         }
     }
