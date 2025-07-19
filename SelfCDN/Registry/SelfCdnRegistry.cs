@@ -6,7 +6,8 @@ using System.Collections.Generic;
 using System;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using SelfCDN.MediaMetadataExtractor;
+using SelfCDN.OpenAi;
+using SelfCDN.Models;
 
 namespace SelfCDN.Registry
 {
@@ -17,8 +18,7 @@ namespace SelfCDN.Registry
         private readonly string _databaseFilePath;
         private readonly string _scanDirectoryPath;
         private readonly int _skipModificationTime;
-        private readonly string _llmApiKey;
-        private readonly string _llmModel;
+        private readonly OpenAiSettings _openAiSettings;
 
         private readonly TmdbMapper _tmdbMapper;
 
@@ -26,16 +26,14 @@ namespace SelfCDN.Registry
             string databaseFilePath,
             string scanDirectoryPath,
             string tmdbApiKey,
-            string llmApiKey,
-            string llmModel,
+            OpenAiSettings openAiSettings,
             string tmdbLang = "en-US",
             int skipModificationTime = 60)
         {
+            _openAiSettings = openAiSettings;
             _databaseFilePath = databaseFilePath;
             _scanDirectoryPath = scanDirectoryPath;
             _skipModificationTime = skipModificationTime;
-            _llmApiKey = llmApiKey;
-            _llmModel = llmModel;
 
             _tmdbMapper = new TmdbMapper(tmdbApiKey, tmdbLang);
         }
@@ -44,7 +42,12 @@ namespace SelfCDN.Registry
 
         public async Task ScanAsync()
         {
-            ConsoleLogger.Log("[SelfCdnRegistry] Start scan");
+            if (string.IsNullOrEmpty(_openAiSettings.ApiUrl))
+            {
+                return;
+            }
+
+            Logger.Log("[SelfCdnRegistry] Start scan");
 
             await Storage.LoadAsync(_databaseFilePath);
             //Storage.PruneMissedFiles();
@@ -60,7 +63,7 @@ namespace SelfCDN.Registry
                 skipFilePaths.Select(path => Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar)),
                 StringComparer.OrdinalIgnoreCase);
 
-            ConsoleLogger.Log(() =>
+            Logger.Log(() =>
             {
                 var json = JsonSerializer.Serialize(
                     skipFilePaths,
@@ -103,7 +106,7 @@ namespace SelfCDN.Registry
                 .Distinct()
                 .ToList();
 
-            ConsoleLogger.Log(() =>
+            Logger.Log(() =>
             {
                 var json = JsonSerializer.Serialize(
                     scanFiles,
@@ -119,44 +122,92 @@ namespace SelfCDN.Registry
             if (scanFiles.Count == 0)
             {
                 await Storage.SaveAsync(_databaseFilePath);
-                ConsoleLogger.Log("[SelfCdnRegistry] Stop scan");
+                Logger.Log("[SelfCdnRegistry] Stop scan");
                 return;
             }
 
-            using var llmParser = new GroqMediaMetadataExtractor(_llmApiKey, _llmModel);
-            var scanFileMediaInfo = await llmParser.ExtractAsync(scanFiles);
+            using var llmParser = new OpenAiMediaMetadataExtractor(
+                _openAiSettings.ApiUrl,
+                _openAiSettings.ModelName,
+                _openAiSettings.ApiKey);
 
-            ConsoleLogger.Log(() =>
+            for (var i = 0; i < scanFiles.Count; i += _openAiSettings.BatchSize)
+            {
+                var batch = scanFiles
+                    .Skip(i)
+                    .Take(_openAiSettings.BatchSize)
+                    .ToList();
+
+                Logger.Log(() =>
+                {
+                    var json = JsonSerializer.Serialize(
+                        batch,
+                        new JsonSerializerOptions
+                        {
+                            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                            WriteIndented = true,
+                        });
+
+                    return $"[SelfCdnRegistry] LLM Processing batch #{i}: {json}";
+                });
+
+                try
+                {
+                    await ProcessFilesAsync(llmParser, batch);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[ERROR] {ex.Message}, {ex.StackTrace}");
+                    break;
+                }
+
+                if (i + _openAiSettings.BatchSize < scanFiles.Count)
+                {
+                    Logger.Log($"[SelfCdnRegistry] Batch delay: {_openAiSettings.BatchTimeoutSec}");
+                    await Task.Delay(TimeSpan.FromSeconds(_openAiSettings.BatchTimeoutSec));
+                }
+            }
+
+            Logger.Log("[SelfCdnRegistry] Stop scan");
+        }
+
+        private async Task ProcessFilesAsync(
+            IMediaMetadataExtractor mediaMetadataExtractor,
+            List<string> filePaths)
+        {
+            var mediaMetadataItems = await mediaMetadataExtractor.ExtractAsync(filePaths);
+
+            Logger.Log(() =>
             {
                 var json = JsonSerializer.Serialize(
-                    scanFileMediaInfo,
+                    filePaths,
                     new JsonSerializerOptions
                     {
                         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
                         WriteIndented = true,
                     });
 
-                return $"[SelfCdnRegistry] Recognized media items: {json}";
+                return $"[SelfCdnRegistry] LLM Processing batch result: {json}";
             });
 
-            scanFileMediaInfo
+            mediaMetadataItems
                 .Where(f => string.IsNullOrWhiteSpace(f.Title))
                 .ToList()
-                .ForEach(f => Storage.AddUnrecognized(f.FileName));
+                .ForEach(f => Storage.AddUnrecognized(f.FilePath));
 
-            scanFileMediaInfo = scanFileMediaInfo
+            mediaMetadataItems = mediaMetadataItems
                 .Where(f => !string.IsNullOrWhiteSpace(f.Title))
                 .ToList();
 
             var tmdbResults = new List<FileTmdbInfo>();
 
-            foreach (var file in scanFileMediaInfo)
+            foreach (var file in mediaMetadataItems)
             {
                 var tmdbResult = await _tmdbMapper.MapToTmdbAsync(file);
                 tmdbResults.Add(tmdbResult);
             }
 
-            ConsoleLogger.Log(() =>
+            Logger.Log(() =>
             {
                 var json = JsonSerializer.Serialize(
                     tmdbResults,
@@ -185,7 +236,6 @@ namespace SelfCDN.Registry
                 .ForEach(r => Storage.AddUnrecognized(r.FileName));
 
             await Storage.SaveAsync(_databaseFilePath);
-            ConsoleLogger.Log("[SelfCdnRegistry] Stop scan");
         }
     }
 }

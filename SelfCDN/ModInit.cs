@@ -22,11 +22,24 @@ namespace SelfCDN
 
         public static void loaded(InitspaceModel initspace)
         {
+            try
+            {
+                Init(initspace);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message, ex.StackTrace);
+                throw;
+            }
+        }
+
+        private static void Init(InitspaceModel initspace)
+        {
             Initspace = initspace;
 
             var settingsFilePath = $"{initspace.path}/settings.json";
 
-            ConsoleLogger.Log($"Settings file path: {settingsFilePath}");
+            Logger.Log($"Settings file path: {settingsFilePath}");
 
             if (File.Exists(settingsFilePath))
             {
@@ -50,7 +63,7 @@ namespace SelfCDN
                 using var fileStream = File.Create(settingsFilePath);
                 JsonSerializer.Serialize(fileStream, ModuleSettings, jsonOptions);
 
-                ConsoleLogger.Log($"Settings file is created with default options");
+                Logger.Log($"Settings file is created with default options");
             }
 
             BalancerSettings = new OnlinesSettings("SelfCDN", string.Empty)
@@ -58,27 +71,28 @@ namespace SelfCDN
                 displayname = ModuleSettings.DisplayName,
             };
 
+            var dbFilePath = $"{initspace.path}/db.json";
+
             SelfCdnRegistry = new SelfCdnRegistry(
-                $"{initspace.path}/db.json",
+                dbFilePath,
                 ModuleSettings.StoragePath,
                 ModuleSettings.TmdbApiKey,
-                ModuleSettings.LlmApiKey,
-                ModuleSettings.LlmModel,
+                ModuleSettings.OpenAi ?? new OpenAiSettings(),
                 ModuleSettings.TmdbLang,
                 ModuleSettings.SkipModificationMinutes ?? 60);
 
             var timeoutMinutes = ModuleSettings.TimeoutMinutes ?? 60;
 
-            if (string.IsNullOrEmpty(ModuleSettings.LlmApiKey))
+            if (string.IsNullOrEmpty(ModuleSettings?.OpenAi?.ApiUrl))
             {
-                ConsoleLogger.Log("[WARNING] API key for LLM is missing. LLM functionality will be disabled.");
+                Logger.Log("[WARNING] API key for LLM is missing. LLM functionality will be disabled.");
 
-                Task.Run(() => SelfCdnRegistry.Storage.LoadAsync(ModuleSettings.StoragePath))
+                Task.Run(() => SelfCdnRegistry.Storage.LoadAsync(dbFilePath))
                     .ConfigureAwait(false)
                     .GetAwaiter()
                     .GetResult();
-                
-                Task.Run(() => SelfCdnRegistry.Storage.SaveAsync(ModuleSettings.StoragePath))
+
+                Task.Run(() => SelfCdnRegistry.Storage.SaveAsync(dbFilePath))
                     .ConfigureAwait(false)
                     .GetAwaiter()
                     .GetResult();
@@ -116,7 +130,7 @@ namespace SelfCDN
                     }
                     catch (Exception ex)
                     {
-                        ConsoleLogger.Log($"[ERROR]: SelfCDN. {ex.Message}");
+                        Logger.Log($"[ERROR]: SelfCDN. {ex.Message}");
                     }
                 }
             });

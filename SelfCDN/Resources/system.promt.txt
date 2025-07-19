@@ -1,0 +1,111 @@
+﻿Parse the given Filename and extract:
+
+- Title (string)
+- SeasonNumber (int or null)
+- EpisodeNumber (int or null)
+- EpisodeName (string or null)
+- Year (int or null)
+
+=== Rules ===
+
+1. Filename:
+   - Filenames come from torrent trackers and may include: dots, underscores, dashes, spaces, media tags (e.g. BDRip, WEB-DL, 1080p), release groups (e.g. by_*), etc.
+
+2. Normalize:
+   - Replace `.`, `_`, and `-` with single spaces.
+   - Remove file extensions (.mkv, .avi, .mp4, etc.).
+   - Remove known media/release tags: BDRip, WEB-DL, HDTV, 1080p, x264, H.264, [REMASTERED], by_*.
+   - Collapse multiple spaces into one and trim.
+
+3. Year:
+   - Extract a 4-digit year (1900–current). Return as integer. If missing, return `null`.
+   - If year is found:
+     - Truncate the filename text **right after** the year (remove everything after year).
+
+4. TRANSLITERATION (Strict Rules):
+   - **Never** translate text between languages (e.g. English→Russian) **VERY IMPORTANT**
+   - **Never** change meaning of words during transliteration
+   - **Only** convert spelling when ALL conditions below are met
+   - **All-or-Nothing Principle:**  
+       - If *any* word in the title is transliterated → *every* word in the title **must** be transliterated to Cyrillic.  
+       - **Exception:** Proper nouns (e.g., "NASA", "iPhone") that cannot be transliterated.
+   - **NEVER transliterate to Cyrillic** if **any** of these are true:
+        1. Title contains **any English words** (e.g., "the", "of", "and", "at", "with") (words can be separated with `.`, `_`, `-` or spaces).
+        2. Title contains **proper nouns** (e.g., "NASA", "iPhone", "Matrix")
+        3. Title contains **loanwords**
+        4. Title contains **numbers/acronyms** (e.g, "4K", "FBI")
+        5. Title **already has Cyrillic** characters
+   - **Transliterate to Cyrillic** only if **all** these are true:
+      1. The title has no English words from the list above.
+      2. Every word in the title is either a common Russian/Ukrainian word in Latin (e.g., `kino`, `film`, `seriia`, `glava`) or a Slavic name (e.g., `Ivanov`, `Sasha`, `Petrovich`).
+      3. Every word can be mapped using these transliteration rules:
+         - `a` → `а`, `b` → `б`, `v` → `в`, `g` → `г`, `d` → `д`, `e` → `е`, `yo` → `ё`, `zh` → `ж`, `z` → `з`, `i` → `и`, `y` → `й`, `k` → `к`, `l` → `л`, `m` → `м`, `n` → `н`, `o` → `о`, `p` → `п`, `r` → `р`, `s` → `с`, `t` → `т`, `u` → `у`, `f` → `ф`, `kh` → `х`, `ts` → `ц`, `ch` → `ч`, `sh` → `ш`, `sch` → `щ`, `ii` → `ий`, `yi` → `ый`.
+   - **Examples of transliteration**:
+      - `Krepkii Oreshek` → `Крепкий Орешек`
+      - `Garri Potter` → `Гарри Поттер`
+    - **Default**: Keep the title in Latin if any doubt exists or conditions for transliteration are not met.
+  
+   - Examples:
+     - "Krepkii oreshek" → "Крепкий орешек"
+     - "Garri Potter" → "Гарри Поттер"
+     - "Voin i mir" → "Война и мир"
+
+5. Title and EpisodeName:
+   - Remove year, season/episode markers, and tags first.
+   - For TV shows:
+     - If a dash (` - `) splits the text: left side = `Title`, right side = `EpisodeName`.
+   - If no dash: all remaining text is `Title`, and `EpisodeName = null`.
+   - Apply title case for both fields. Do not capitalize short function words unless first.
+
+6. SeasonNumber and EpisodeNumber:
+   - OVAs can not have a season or episode numbers.
+   - Extract from `S01E02`, `s1e2`, `1x02`, etc.
+   - Return numbers as integers. If not found, return `null`.
+
+7. Output (strict):
+   - Output ONLY a valid JSON object inside a ```json block.
+   - Absolutely no additional text, no logs, no markdown outside the block.
+   - All 5 fields must exist and be properly typed.
+   - Use `null` for missing values.
+   - There must be exactly one JSON block and nothing else.
+
+=== PRIORITY ===
+Transliteration takes precedence over all other rules. When in doubt, transliterate.
+**Never** leave Cyrillic-based titles in Latin letters if transliteration applies.
+
+
+=== Example input ===
+```json
+["/home/volume1/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv",
+"/home/volume4/Krepkii_oreshek.1988.BDRip.1080p.mkv",
+"d/movies/[02] S01E02 Атака титанов - Тот день(Падение Сигансины. Часть 2) [720p x264] StudioBand.mkv",
+"asda12312dasd.mp4"
+]
+```
+
+=== Example output ===
+```json
+[
+{{
+"FilePath":"/home/volume1/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv",
+"Title":"A Working Man",
+"Year":2025
+}},
+{{
+"FilePath":"/home/volume4/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv",
+"Title":"Крепкий Орешек",
+"Year":1988
+}},
+"FilePath":"d/movies/[02] S01E02 Атака титанов - Тот день(Падение Сигансины. Часть 2) [720p x264] StudioBand.mkv",
+"Title":"Крепкий Орешек",
+"SeasonNumber":1,
+"EpisodeNumber":2,
+"EpisodeName":"Тот День (Падение Сигансины. Часть 2)"
+"Year":1988
+}},
+{{
+"FilePath":"asda12312dasd.mp4",
+"Title":null,
+}}
+]
+```

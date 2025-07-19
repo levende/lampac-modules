@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 
-namespace SelfCdn.Registry.Parser
+namespace SelfCdn.Parser
 {
     internal class QualityParser
     {

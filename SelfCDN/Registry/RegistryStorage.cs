@@ -121,12 +121,12 @@ namespace SelfCDN.Registry
 
         public async Task LoadAsync(string filePath)
         {
-            ConsoleLogger.Log("[RegistryStorage] start load file");
+            Logger.Log("[RegistryStorage] start load file");
             ArgumentNullException.ThrowIfNull(filePath);
 
             if (!File.Exists(filePath))
             {
-                ConsoleLogger.Log($"Registry storage file not found: {filePath}");
+                Logger.Log($"Registry storage file not found: {filePath}");
                 return;
             }
 
@@ -147,26 +147,26 @@ namespace SelfCDN.Registry
                     _ignored = instance.Ignored.ToList();
 
 
-                    ConsoleLogger.Log($"[RegistryStorage] file loaded. " +
+                    Logger.Log($"[RegistryStorage] file loaded. " +
                                       $"Recognized: {_recognized.Count}, " +
                                       $"Unrecognized: {_unrecognized.Count}, " +
                                       $"Ignored: {Ignored.Count}");
                 }
                 else
                 {
-                    ConsoleLogger.Log("[RegistryStorage] error during loading");
+                    Logger.Log("[RegistryStorage] error during loading");
                 }
 
             }
             catch (Exception ex)
             {
-                ConsoleLogger.Log(ex.Message);
+                Logger.Log(ex.Message);
             }
         }
 
         public async Task SaveAsync(string filePath)
         {
-            ConsoleLogger.Log("[RegistryStorage] start save file");
+            Logger.Log("[RegistryStorage] start save file");
 
             var jsonOptions = new JsonSerializerOptions
             {
@@ -178,12 +178,12 @@ namespace SelfCDN.Registry
             await using var fileStream = File.Create(filePath);
             await JsonSerializer.SerializeAsync(fileStream, this, jsonOptions);
 
-            ConsoleLogger.Log("[RegistryStorage] file saved");
+            Logger.Log("[RegistryStorage] file saved");
         }
 
         public void PruneMissedFiles()
         {
-            ConsoleLogger.Log("[RegistryStorage] start prune missed files");
+            Logger.Log("[RegistryStorage] start prune missed files");
 
             WithWriteLock(_lockRecognized, () =>
             {
@@ -199,7 +199,7 @@ namespace SelfCDN.Registry
                     _recognized.Remove(entry.Key);
                 }
 
-                ConsoleLogger.Log("[RegistryStorage] finished prune missed recognized files");
+                Logger.Log("[RegistryStorage] finished prune missed recognized files");
             });
 
             WithWriteLock(_lockUnrecognized, () =>
@@ -207,16 +207,16 @@ namespace SelfCDN.Registry
                 _unrecognized.RemoveAll(f => !File.Exists(f));
             });
 
-            ConsoleLogger.Log("[RegistryStorage] finished prune missed unrecognized files");
+            Logger.Log("[RegistryStorage] finished prune missed unrecognized files");
 
             WithWriteLock(_lockIgnored, () =>
             {
                 _ignored.RemoveAll(f => !File.Exists(f));
             });
 
-            ConsoleLogger.Log("[RegistryStorage] finished prune missed ignored files");
+            Logger.Log("[RegistryStorage] finished prune missed ignored files");
 
-            ConsoleLogger.Log("[RegistryStorage] finish prune missed files");
+            Logger.Log("[RegistryStorage] finish prune missed files");
         }
 
         private T WithReadLock<T>(ReaderWriterLockSlim lockObj, Func<T> func)

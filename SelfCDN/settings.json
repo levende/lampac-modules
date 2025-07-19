@@ -1,0 +1,16 @@
+{
+  "IsLogEnabled": true,
+  "TimeoutMinutes": 60,
+  "SkipModificationMinutes": 60,
+  "StoragePath": "dlna",
+  "TmdbApiKey": "4ef0d7355d9ffb5151e987764708ce96",
+  "TmdbLang": "en-US",
+  "DisplayName": "SelfCDN",
+  "OpenAi": {
+    "ApiUrl": "http://localhost:3264/api/chat/completions",
+    "ApiKey": null,
+    "ModelName": "qwen3-235b-a22b",
+    "BatchSize": 25,
+    "BatchTimeoutSec": 3
+  }
+}

@@ -1,4 +1,4 @@
-﻿using SelfCdn.Registry.Models;
+﻿using SelfCdn.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;

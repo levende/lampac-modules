@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using SelfCdn.Models;
 using SelfCdn.Registry.Models;
 using SelfCDN.Tmdb;
 
@@ -41,7 +42,7 @@ internal class TmdbMapper
         {
             return new FileTmdbInfo
             {
-                FileName = mediaMetadata.FileName,
+                FileName = mediaMetadata.FilePath,
                 Title = mediaMetadata.Title,
                 ReleaseYear = mediaMetadata.Year,
                 MediaType = isSeries ? "tv" : "movie",
@@ -51,7 +52,7 @@ internal class TmdbMapper
             };
         }
 
-        result.FileName = mediaMetadata.FileName;
+        result.FileName = mediaMetadata.FilePath;
         return result;
     }
 
@@ -71,7 +72,7 @@ internal class TmdbMapper
             OriginalTitle = movieDetails.original_title,
             ReleaseYear = movieDetails.release_date?.Year,
             MediaType = "movie",
-            FileName = mediaMetadata.FileName,
+            FileName = mediaMetadata.FilePath,
         };
     }
 
@@ -94,7 +95,7 @@ internal class TmdbMapper
             OriginalTitle = seriesDetails.original_name,
             ReleaseYear = seriesDetails.first_air_date?.Year,
             MediaType = "tv",
-            FileName = mediaMetadata.FileName,
+            FileName = mediaMetadata.FilePath,
         };
 
         if (!mediaMetadata.SeasonNumber.HasValue || !mediaMetadata.EpisodeNumber.HasValue) return result;

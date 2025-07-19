@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace SelfCdn.Registry.Models
+namespace SelfCdn.Models
 {
     internal class MediaMetadata
     {
@@ -18,6 +18,6 @@ namespace SelfCdn.Registry.Models
 
         [JsonPropertyName("Year")]
         public int? Year { get; set; }
-        public string FileName { get; set; }
+        public string FilePath { get; set; }
     }
 }

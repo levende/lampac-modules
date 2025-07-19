@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Lampac.Engine;
 using Shared.Model.Templates;
 using SelfCDN.Models;
-using SelfCdn.Registry.Parser;
+using SelfCdn.Parser;
 using SelfCDN.Templates;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -23,7 +23,7 @@ namespace SelfCDN.Controllers
         [Route("selfCDN/stream")]
         public ActionResult Stream(string path)
         {
-            ConsoleLogger.Log($"Stream request: {path}");
+            Logger.Log($"Stream request: {path}");
             try
             {
                 if (string.IsNullOrWhiteSpace(path))
@@ -53,10 +53,10 @@ namespace SelfCDN.Controllers
             }
             catch (Exception ex)
             {
-                ConsoleLogger.Log("err");
+                Logger.Log("err");
 
-                ConsoleLogger.Log(ex.Message);
-                ConsoleLogger.Log(ex.StackTrace);
+                Logger.Log(ex.Message);
+                Logger.Log(ex.StackTrace);
             }
 
             return Forbid();
@@ -98,7 +98,7 @@ namespace SelfCDN.Controllers
             }
             catch (Exception ex)
             {
-                ConsoleLogger.Log(ex.Message + Environment.NewLine + (ex.StackTrace ?? string.Empty));
+                Logger.Log(ex.Message + Environment.NewLine + (ex.StackTrace ?? string.Empty));
                 throw;
             }
         }
@@ -227,7 +227,7 @@ namespace SelfCDN.Controllers
 
         private ActionResult RenderEpisodes(MediaRequestParameters parameters, Dictionary<int, List<Voice>> series)
         {
-            ConsoleLogger.Log(() =>
+            Logger.Log(() =>
             {
                 var json = JsonSerializer.Serialize(
                     series,
@@ -242,7 +242,7 @@ namespace SelfCDN.Controllers
 
             if (!series.TryGetValue(parameters.Season, out var voices))
             {
-                ConsoleLogger.Log($"Season {parameters.Season} not found.");
+                Logger.Log($"Season {parameters.Season} not found.");
                 return Ok();
             }
 
@@ -255,7 +255,7 @@ namespace SelfCDN.Controllers
 
             if (targetVoice == null)
             {
-                ConsoleLogger.Log($"Translation {activeTranslationId} not found for season {parameters.Season}.");
+                Logger.Log($"Translation {activeTranslationId} not found for season {parameters.Season}.");
                 return Ok();
             }
 
@@ -338,7 +338,7 @@ namespace SelfCDN.Controllers
 
         private void LogSearchFailure(MediaRequestParameters parameters)
         {
-            ConsoleLogger.Log($"Search returned null for title='{parameters.Title}', " +
+            Logger.Log($"Search returned null for title='{parameters.Title}', " +
                 $"original_title='{parameters.OriginalTitle}', " +
                 $"serial={parameters.Serial}, " +
                 $"uid={parameters.UserId}.");

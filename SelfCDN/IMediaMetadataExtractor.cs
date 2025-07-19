@@ -1,8 +1,8 @@
-﻿using SelfCdn.Registry.Models;
+﻿using SelfCdn.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace SelfCDN.MediaMetadataExtractor
+namespace SelfCDN
 {
     internal interface IMediaMetadataExtractor
     {
