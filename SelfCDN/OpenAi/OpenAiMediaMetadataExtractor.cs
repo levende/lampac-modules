@@ -11,6 +11,8 @@ using System.Text.RegularExpressions;
 using System.Text.Encodings.Web;
 using Shared.Engine;
 using SelfCDN.Models;
+using System.Linq;
+using System.Web;
 
 namespace SelfCDN.OpenAi
 {
@@ -55,12 +57,20 @@ namespace SelfCDN.OpenAi
 
             try
             {
-                var requestBody = CreateRequestBody(filePaths);
+                var encodedList = filePaths.Select(HttpUtility.UrlEncode);
+
+                var requestBody = CreateRequestBody(encodedList);
                 var response = await SendApiRequestAsync(requestBody);
                 Logger.Log($"Response: {response}");
 
                 var rawContent = ExtractResponseContent(response);
                 var mediaInfo = DeserializeMediaInfo(rawContent);
+
+                foreach (var mediaMetadata in mediaInfo)
+                {
+                    mediaMetadata.FilePath = HttpUtility.UrlDecode(mediaMetadata.FilePath);
+                }
+
                 return mediaInfo;
             }
             catch (Exception ex)
