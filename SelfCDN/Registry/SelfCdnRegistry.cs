@@ -50,7 +50,7 @@ namespace SelfCDN.Registry
             Logger.Log("[SelfCdnRegistry] Start scan");
 
             await Storage.LoadAsync(_databaseFilePath);
-            //Storage.PruneMissedFiles();
+            Storage.PruneMissedFiles();
 
             var skipFilePaths = Storage.Recognized
                 .SelectMany(f => f.Value)
@@ -84,7 +84,8 @@ namespace SelfCDN.Registry
                 .Select(file => new FileInfo(file))
                 .Where(fileInfo =>
                 {
-                    string fullPath = Path.GetFullPath(fileInfo.FullName).TrimEnd(Path.DirectorySeparatorChar);
+                    string fullPath = Path.GetFullPath(fileInfo.FullName)
+                        .TrimEnd(Path.DirectorySeparatorChar);
 
                     if (skipSet.Contains(fullPath))
                     {
@@ -126,16 +127,13 @@ namespace SelfCDN.Registry
                 return;
             }
 
-            using var llmParser = new OpenAiMediaMetadataExtractor(
-                _openAiSettings.ApiUrl,
-                _openAiSettings.ModelName,
-                _openAiSettings.ApiKey);
+            using var llmParser = new OpenAiMediaMetadataExtractor(_openAiSettings);
 
-            for (var i = 0; i < scanFiles.Count; i += _openAiSettings.BatchSize)
+            for (var i = 0; i < scanFiles.Count; i += _openAiSettings.BatchSize.Value)
             {
                 var batch = scanFiles
                     .Skip(i)
-                    .Take(_openAiSettings.BatchSize)
+                    .Take(_openAiSettings.BatchSize.Value)
                     .ToList();
 
                 Logger.Log(() =>
@@ -164,7 +162,7 @@ namespace SelfCDN.Registry
                 if (i + _openAiSettings.BatchSize < scanFiles.Count)
                 {
                     Logger.Log($"[SelfCdnRegistry] Batch delay: {_openAiSettings.BatchTimeoutSec}");
-                    await Task.Delay(TimeSpan.FromSeconds(_openAiSettings.BatchTimeoutSec));
+                    await Task.Delay(TimeSpan.FromSeconds(_openAiSettings.BatchTimeoutSec.Value));
                 }
             }
 

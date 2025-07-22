@@ -18,7 +18,7 @@ namespace SelfCDN
 
         public static void Log(string message)
         {
-            if (!ModInit.ModuleSettings.IsLogEnabled)
+            if (!ModInit.ModuleSettings.IsLogEnabled == true)
             {
                 return;
             }
@@ -42,7 +42,7 @@ namespace SelfCDN
 
         public static void Log(Func<string> messageFunc)
         {
-            if (!ModInit.ModuleSettings.IsLogEnabled)
+            if (!ModInit.ModuleSettings.IsLogEnabled == true)
             {
                 return;
             }

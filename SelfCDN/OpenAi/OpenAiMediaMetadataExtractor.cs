@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Encodings.Web;
 using Shared.Engine;
+using SelfCDN.Models;
 
 namespace SelfCDN.OpenAi
 {
@@ -19,21 +20,16 @@ namespace SelfCDN.OpenAi
             @"```json\s*(\[\s*\{.*?\}\s*\])[\s\S]*?```",
             RegexOptions.Singleline);
 
+        private readonly OpenAiSettings _settings;
         private readonly HttpClient _httpClient;
-
-        private readonly string _url;
-        private readonly string _model;
-        private readonly string _apiKey;
 
         private string _systemPromt;
 
         private bool _disposed;
 
-        public OpenAiMediaMetadataExtractor(string url, string model, string apiKey = "")
+        public OpenAiMediaMetadataExtractor(OpenAiSettings settings)
         {
-            _url = url;
-            _apiKey = apiKey;
-            _model = model;
+            _settings = settings;
             _httpClient = InitializeHttpClient();
         }
 
@@ -41,12 +37,13 @@ namespace SelfCDN.OpenAi
         {
             var client = new HttpClient
             {
-                BaseAddress = new Uri(_url)
+                BaseAddress = new Uri(_settings.ApiUrl),
+                Timeout = TimeSpan.FromMinutes(_settings.TimeoutMinutes.Value),
             };
 
-            if (!string.IsNullOrEmpty(_apiKey))
+            if (!string.IsNullOrEmpty(_settings.ApiKey))
             {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
             }
 
             return client;
@@ -86,7 +83,7 @@ namespace SelfCDN.OpenAi
 
             return new
             {
-                model = _model,
+                model = _settings.ModelName,
                 messages = new[]
                 {
                     new { role = "system", content = _systemPromt},

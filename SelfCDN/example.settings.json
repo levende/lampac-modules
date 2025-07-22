@@ -11,6 +11,7 @@
     "ApiKey": null,
     "ModelName": "qwen3-235b-a22b",
     "BatchSize": 25,
-    "BatchTimeoutSec": 3
+    "BatchTimeoutSec": 3,
+    "TimeoutMinutes": 5
   }
 }

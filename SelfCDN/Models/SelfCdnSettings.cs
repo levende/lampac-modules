@@ -4,7 +4,7 @@ namespace SelfCDN.Models
 {
     public class SelfCdnSettings
     {
-        public bool IsLogEnabled { get; set; } = true;
+        public bool? IsLogEnabled { get; set; } = true;
         public int? TimeoutMinutes { get; set; } = 60;
         public int? SkipModificationMinutes { get; set; } = 60;
         public string StoragePath { get; set; } = AppInit.conf.dlna.path;

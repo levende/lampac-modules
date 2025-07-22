@@ -49,6 +49,11 @@ namespace SelfCDN
                 {
                     PropertyNameCaseInsensitive = true
                 });
+
+                ModuleSettings ??= new SelfCdnSettings();
+
+                ModuleSettings.ApplyDefaults();
+                ModuleSettings.OpenAi.ApplyDefaults();
             }
             else
             {

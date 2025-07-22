@@ -6,7 +6,8 @@
         public string ApiKey { get; set; }
         public string ModelName { get; set; }
 
-        public int BatchSize { get; set; } = 25;
-        public int BatchTimeoutSec { get; set; } = 3;
+        public int? TimeoutMinutes { get; set; } = 5;
+        public int? BatchSize { get; set; } = 25;
+        public int? BatchTimeoutSec { get; set; } = 3;
     }
 }
