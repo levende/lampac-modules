@@ -148,7 +148,7 @@ namespace SelfCDN.Registry
                             WriteIndented = true,
                         });
 
-                    return $"[SelfCdnRegistry] LLM Processing batch #{i}: {json}";
+                    return $"[SelfCdnRegistry] LLM Processing batch #{(i / _openAiSettings.BatchSize) + 1}: {json}";
                 });
 
                 try
