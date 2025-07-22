@@ -74,7 +74,7 @@ namespace SelfCDN.OpenAi
 
         private object CreateRequestBody(IEnumerable<string> filePaths)
         {
-            _systemPromt ??= FileCache.ReadAllText(ModInit.Initspace.path + "/Resources/system.promt.txt");
+            _systemPromt ??= FileCache.ReadAllText(ModInit.ModulePath + "/Resources/system.promt.txt");
 
             var inputJson = JsonSerializer.Serialize(
                 filePaths,
@@ -105,12 +105,23 @@ namespace SelfCDN.OpenAi
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync(string.Empty, content);
 
-            if (!response.IsSuccessStatusCode)
+            var responseContent = string.Empty;
+
+            try
             {
-                throw new OpenAiException($"Groq API error: {response.StatusCode}");
+                responseContent = await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new OpenAiException($"Invalid response. Error: {ex.Message}");
             }
 
-            return await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new OpenAiException($"API error: {response.StatusCode}, Response: {responseContent}");
+            }
+
+            return responseContent;
         }
 
         private static string ExtractResponseContent(string responseContent)

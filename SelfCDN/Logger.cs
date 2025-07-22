@@ -5,7 +5,7 @@ namespace SelfCDN
 {
     public class Logger
     {
-        private static readonly string LogDirectory = ModInit.Initspace.path + "/Logs";
+        private static readonly string LogDirectory = ModInit.ModulePath + "/Logs";
         private static readonly object LockObject = new object();
 
         static Logger()

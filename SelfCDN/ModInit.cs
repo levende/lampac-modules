@@ -13,7 +13,7 @@ namespace SelfCDN
 {
     public class ModInit
     {
-        internal static InitspaceModel Initspace { get; set; }
+        internal static string ModulePath { get; set; }
 
         internal static OnlinesSettings BalancerSettings { get; set; }
         internal static SelfCdnSettings ModuleSettings { get; set; } = new();
@@ -24,7 +24,7 @@ namespace SelfCDN
         {
             try
             {
-                Init(initspace);
+                Init(initspace.path);
             }
             catch (Exception ex)
             {
@@ -33,11 +33,11 @@ namespace SelfCDN
             }
         }
 
-        private static void Init(InitspaceModel initspace)
+        public static void Init(string modulePath)
         {
-            Initspace = initspace;
+            ModulePath = modulePath;
 
-            var settingsFilePath = $"{initspace.path}/settings.json";
+            var settingsFilePath = $"{ModulePath}/settings.json";
 
             Logger.Log($"Settings file path: {settingsFilePath}");
 
@@ -71,7 +71,7 @@ namespace SelfCDN
                 displayname = ModuleSettings.DisplayName,
             };
 
-            var dbFilePath = $"{initspace.path}/db.json";
+            var dbFilePath = $"{ModulePath}/db.json";
 
             SelfCdnRegistry = new SelfCdnRegistry(
                 dbFilePath,
@@ -102,10 +102,12 @@ namespace SelfCDN
 
             ThreadPool.QueueUserWorkItem(async _ =>
             {
+                bool scanned = false;
                 while (true)
                 {
                     // initial
-                    if (SelfCdnRegistry.Storage.Recognized.Count == 0
+                    if (!scanned
+                        && SelfCdnRegistry.Storage.Recognized.Count == 0
                         && SelfCdnRegistry.Storage.Unrecognized.Count == 0
                         && SelfCdnRegistry.Storage.Ignored.Count == 0)
                     {
@@ -131,6 +133,9 @@ namespace SelfCDN
                     catch (Exception ex)
                     {
                         Logger.Log($"[ERROR]: SelfCDN. {ex.Message}");
+                    } finally
+                    {
+                        scanned = true;
                     }
                 }
             });
