@@ -178,7 +178,7 @@ namespace SelfCDN.Registry
             Logger.Log(() =>
             {
                 var json = JsonSerializer.Serialize(
-                    filePaths,
+                    mediaMetadataItems,
                     new JsonSerializerOptions
                     {
                         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
