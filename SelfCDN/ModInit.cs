@@ -13,11 +13,12 @@ namespace SelfCDN
 {
     public class ModInit
     {
-        internal static string ModulePath { get; set; }
+        private static readonly SemaphoreSlim ScanSemaphore = new(1, 1);
+        private static Timer? _scanTimer;
 
+        internal static string ModulePath { get; set; }
         internal static OnlinesSettings BalancerSettings { get; set; }
         internal static SelfCdnSettings ModuleSettings { get; set; } = new();
-
         internal static SelfCdnRegistry SelfCdnRegistry;
 
         public static void loaded(InitspaceModel initspace)
@@ -28,7 +29,7 @@ namespace SelfCDN
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message, ex.StackTrace);
+                Logger.Log($"[ERROR] ModInit.loaded: {ex.Message}\n{ex.StackTrace}");
                 throw;
             }
         }
@@ -37,27 +38,23 @@ namespace SelfCDN
         {
             ModulePath = modulePath;
 
-            var settingsFilePath = $"{ModulePath}/settings.json";
-
+            var settingsFilePath = Path.Combine(ModulePath, "settings.json");
             Logger.Log($"Settings file path: {settingsFilePath}");
 
             if (File.Exists(settingsFilePath))
             {
                 string settingsJson = File.ReadAllText(settingsFilePath);
-
                 ModuleSettings = JsonSerializer.Deserialize<SelfCdnSettings>(settingsJson, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
-                });
-
-                ModuleSettings ??= new SelfCdnSettings();
-
+                }) ?? new SelfCdnSettings();
                 ModuleSettings.ApplyDefaults();
-                ModuleSettings.OpenAi.ApplyDefaults();
+                ModuleSettings.OpenAi?.ApplyDefaults();
             }
             else
             {
                 ModuleSettings = new SelfCdnSettings();
+                ModuleSettings.ApplyDefaults();
 
                 var jsonOptions = new JsonSerializerOptions
                 {
@@ -68,7 +65,7 @@ namespace SelfCDN
                 using var fileStream = File.Create(settingsFilePath);
                 JsonSerializer.Serialize(fileStream, ModuleSettings, jsonOptions);
 
-                Logger.Log($"Settings file is created with default options");
+                Logger.Log("Settings file created with default options.");
             }
 
             BalancerSettings = new OnlinesSettings("SelfCDN", string.Empty)
@@ -76,7 +73,7 @@ namespace SelfCDN
                 displayname = ModuleSettings.DisplayName,
             };
 
-            var dbFilePath = $"{ModulePath}/db.json";
+            var dbFilePath = Path.Combine(ModulePath, "db.json");
 
             SelfCdnRegistry = new SelfCdnRegistry(
                 dbFilePath,
@@ -86,64 +83,86 @@ namespace SelfCDN
                 ModuleSettings.TmdbLang,
                 ModuleSettings.SkipModificationMinutes ?? 60);
 
-            var timeoutMinutes = ModuleSettings.TimeoutMinutes ?? 60;
-
-            if (string.IsNullOrEmpty(ModuleSettings?.OpenAi?.ApiUrl))
+            if (string.IsNullOrEmpty(ModuleSettings.OpenAi?.ApiUrl))
             {
                 Logger.Log("[WARNING] API key for LLM is missing. LLM functionality will be disabled.");
 
-                Task.Run(() => SelfCdnRegistry.Storage.LoadAsync(dbFilePath))
-                    .ConfigureAwait(false)
-                    .GetAwaiter()
-                    .GetResult();
-
-                Task.Run(() => SelfCdnRegistry.Storage.SaveAsync(dbFilePath))
-                    .ConfigureAwait(false)
-                    .GetAwaiter()
-                    .GetResult();
+                _ = Task.Run(async () =>
+                {
+                    await SelfCdnRegistry.Storage.LoadAsync(dbFilePath);
+                    await SelfCdnRegistry.Storage.SaveAsync(dbFilePath);
+                });
 
                 return;
             }
 
-            ThreadPool.QueueUserWorkItem(async _ =>
+            StartScanningTimer(ModuleSettings.TimeoutMinutes.Value);
+        }
+
+        public static void StartScanningTimer(int timeoutMinutes)
+        {
+            StopScanningTimer();
+
+            TimeSpan period = timeoutMinutes == -666
+                ? TimeSpan.FromSeconds(5)
+                : TimeSpan.FromMinutes(timeoutMinutes > 0 ? timeoutMinutes : 1);
+
+            _scanTimer = new Timer(
+                callback: OnTimerElapsed,
+                state: null,
+                dueTime: TimeSpan.Zero,
+                period: period
+            );
+        }
+
+        public static void StopScanningTimer()
+        {
+            if (_scanTimer != null)
             {
-                bool scanned = false;
-                while (true)
+                _scanTimer.Dispose();
+                _scanTimer = null;
+            }
+        }
+
+        private static void OnTimerElapsed(object? state)
+        {
+            Task.Run(async () =>
+            {
+                try
                 {
-                    // initial
-                    if (!scanned
-                        && SelfCdnRegistry.Storage.Recognized.Count == 0
-                        && SelfCdnRegistry.Storage.Unrecognized.Count == 0
-                        && SelfCdnRegistry.Storage.Ignored.Count == 0)
-                    {
-                        await Task.Delay(TimeSpan.FromMinutes(0))
-                            .ConfigureAwait(false);
-                    }
-                    else if (timeoutMinutes == -666)
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(5))
-                            .ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await Task.Delay(TimeSpan.FromMinutes(timeoutMinutes > 0 ? timeoutMinutes : 1))
-                            .ConfigureAwait(false);
-                    }
-
-                    try
-                    {
-                        await SelfCdnRegistry.ScanAsync().ConfigureAwait(false);
-
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log($"[ERROR]: SelfCDN. {ex.Message}");
-                    } finally
-                    {
-                        scanned = true;
-                    }
+                    await StartScanningAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[ERROR] Unhandled exception in timer callback: {ex}");
                 }
             });
+        }
+
+        private static async Task StartScanningAsync()
+        {
+            if (!await ScanSemaphore.WaitAsync(0))
+            {
+                Logger.Log("[INFO] Scan is already running (possibly for hours). Skipping this scheduled tick to avoid overlap.");
+                return;
+            }
+
+            try
+            {
+                await SelfCdnRegistry.ScanAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Logger.Log("[INFO] Scan was cancelled.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[ERROR] SelfCDN scan failed: {ex.Message}");
+            }
+            finally
+            {
+                ScanSemaphore.Release();
+            }
         }
     }
 }
