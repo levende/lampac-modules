@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using SelfCdn.Models;
 using SelfCDN.OpenAi;
 using SelfCDN.Models;
 
@@ -169,11 +170,45 @@ namespace SelfCDN.Registry
             Logger.Log("[SelfCdnRegistry] Stop scan");
         }
 
+        private async Task<IReadOnlyCollection<MediaMetadata>> ExtractRetryAsync(
+            IMediaMetadataExtractor mediaMetadataExtractor,
+            List<string> filePaths,
+            int allowedRetries,
+            int retryTimeoutSec)
+        {
+            int currentAttempt = 0;
+
+            while (true)
+            {
+                try
+                {
+                    currentAttempt++;
+                    return await mediaMetadataExtractor.ExtractAsync(filePaths);
+                }
+                catch (Exception ex) when (currentAttempt <= allowedRetries)
+                {
+                    Logger.Log(($"Attempt {currentAttempt} failed. Error: {ex.Message}"));
+
+                    if (currentAttempt >= allowedRetries)
+                    {
+                        throw;
+                    }
+
+                    Logger.Log(($"Attempt timeout: {retryTimeoutSec}s"));
+                    await Task.Delay(TimeSpan.FromSeconds(retryTimeoutSec));
+                }
+            }
+        }
+
         private async Task ProcessFilesAsync(
             IMediaMetadataExtractor mediaMetadataExtractor,
             List<string> filePaths)
         {
-            var mediaMetadataItems = await mediaMetadataExtractor.ExtractAsync(filePaths);
+            var mediaMetadataItems = await ExtractRetryAsync(
+                mediaMetadataExtractor,
+                filePaths,
+                3,
+                120);
 
             Logger.Log(() =>
             {
