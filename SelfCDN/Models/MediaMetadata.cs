@@ -19,5 +19,6 @@ namespace SelfCdn.Models
         [JsonPropertyName("Year")]
         public int? Year { get; set; }
         public string FilePath { get; set; }
+        public string Id { get; set; }
     }
 }

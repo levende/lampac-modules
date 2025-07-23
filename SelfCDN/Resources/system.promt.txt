@@ -8,6 +8,9 @@
 
 === Rules ===
 
+0. Id:
+   - Ensure that the id field is copied from the input JSON to the output exactly as it is, without any changes.
+
 1. Filename:
    - Filenames come from torrent trackers and may include: dots, underscores, dashes, spaces, media tags (e.g. BDRip, WEB-DL, 1080p), release groups (e.g. by_*), etc.
 
@@ -44,7 +47,7 @@
       - `Krepkii Oreshek` → `Крепкий Орешек`
       - `Garri Potter` → `Гарри Поттер`
     - **Default**: Keep the title in Latin if any doubt exists or conditions for transliteration are not met.
-  
+ 
    - Examples:
      - "Krepkii oreshek" → "Крепкий орешек"
      - "Garri Potter" → "Гарри Поттер"
@@ -73,13 +76,25 @@
 Transliteration takes precedence over all other rules. When in doubt, transliterate.
 **Never** leave Cyrillic-based titles in Latin letters if transliteration applies.
 
-
 === Example input ===
 ```json
-["/home/volume1/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv",
-"/home/volume4/Krepkii_oreshek.1988.BDRip.1080p.mkv",
-"d/movies/[02] S01E02 Атака титанов - Тот день(Падение Сигансины. Часть 2) [720p x264] StudioBand.mkv",
-"asda12312dasd.mp4"
+[
+{
+"Id": "4IRaw9aH2UiWOCObe9cCwA==",
+"FilePath": "/home/volume1/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv"
+},
+{
+"Id": "sNZYESOZvUCDC1SskSJvwA==",
+"FilePath": "/home/volume4/Krepkii_oreshek.1988.BDRip.1080p.mkv"
+},
+{
+"Id": "eMYolTD6dU69PaNXD+cwdg==",
+"FilePath": "d/movies/[02] S01E02 Атака титанов - Тот день(Падение Сигансины. Часть 2) [720p x264] StudioBand.mkv"
+},
+{
+"Id": "+UvwXaOr3Eay4GS3WCgZlg==",
+"FilePath": "asda12312dasd.mp4"
+}
 ]
 ```
 
@@ -89,23 +104,27 @@ Transliteration takes precedence over all other rules. When in doubt, transliter
 {{
 "FilePath":"/home/volume1/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv",
 "Title":"A Working Man",
-"Year":2025
+"Year":2025,
+"Id": "4IRaw9aH2UiWOCObe9cCwA=="
 }},
 {{
 "FilePath":"/home/volume4/A.Working.Man.2025.1080p.WEB-RIP.H.264.mkv",
 "Title":"Крепкий Орешек",
-"Year":1988
+"Year":1988,
+"Id": "sNZYESOZvUCDC1SskSJvwA=="
 }},
 "FilePath":"d/movies/[02] S01E02 Атака титанов - Тот день(Падение Сигансины. Часть 2) [720p x264] StudioBand.mkv",
 "Title":"Крепкий Орешек",
 "SeasonNumber":1,
 "EpisodeNumber":2,
 "EpisodeName":"Тот День (Падение Сигансины. Часть 2)"
-"Year":1988
+"Year":1988,
+"Id": "eMYolTD6dU69PaNXD+cwdg=="
 }},
 {{
 "FilePath":"asda12312dasd.mp4",
 "Title":null,
+"Id": "+UvwXaOr3Eay4GS3WCgZlg=="
 }}
 ]
 ```

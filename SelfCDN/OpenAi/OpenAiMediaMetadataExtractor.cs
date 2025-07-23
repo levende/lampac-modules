@@ -57,9 +57,15 @@ namespace SelfCDN.OpenAi
 
             try
             {
-                var encodedList = filePaths.Select(HttpUtility.UrlEncode);
+                var originalList = filePaths.Select(path => new FilePathId(
+                    Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Replace("+", "-").Replace("/", "_").TrimEnd('='),
+                    path)).ToList();
 
-                var requestBody = CreateRequestBody(encodedList);
+                var requestList = originalList.Select(l => new FilePathId(
+                    l.Id,
+                    HttpUtility.UrlEncode(l.FilePath)));
+
+                var requestBody = CreateRequestBody(requestList);
                 var response = await SendApiRequestAsync(requestBody);
                 Logger.Log($"Response: {response}");
 
@@ -68,7 +74,7 @@ namespace SelfCDN.OpenAi
 
                 foreach (var mediaMetadata in mediaInfo)
                 {
-                    mediaMetadata.FilePath = HttpUtility.UrlDecode(mediaMetadata.FilePath);
+                    mediaMetadata.FilePath = originalList.First(l => l.Id == mediaMetadata.Id).FilePath;
                 }
 
                 return mediaInfo;
@@ -79,7 +85,7 @@ namespace SelfCDN.OpenAi
             }
         }
 
-        private object CreateRequestBody(IEnumerable<string> filePaths)
+        private object CreateRequestBody(IEnumerable<FilePathId> filePaths)
         {
             _systemPromt ??= FileCache.ReadAllText(ModInit.ModulePath + "/Resources/system.promt.txt");
 
@@ -181,5 +187,7 @@ namespace SelfCDN.OpenAi
             _httpClient?.Dispose();
             _disposed = true;
         }
+
+        private record FilePathId(string Id, string FilePath);
     }
 }
