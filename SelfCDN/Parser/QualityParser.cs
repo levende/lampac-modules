@@ -34,7 +34,7 @@ namespace SelfCdn.Parser
             return QualityPatterns.FirstOrDefault(kv => Regex.IsMatch(
                 fileName, 
                 $@"(^|[^a-z0-9])({kv.Key})([^a-z0-9]|$)",
-                RegexOptions.IgnoreCase)).Value;
+                RegexOptions.IgnoreCase)).Value ?? "Unknown";
         }
 
         public static string GetQualityTagsPattern()

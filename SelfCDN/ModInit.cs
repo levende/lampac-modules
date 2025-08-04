@@ -85,7 +85,7 @@ namespace SelfCDN
 
             if (string.IsNullOrEmpty(ModuleSettings.OpenAi?.ApiUrl))
             {
-                Logger.Log("[WARNING] API key for LLM is missing. LLM functionality will be disabled.");
+                Logger.Log("[WARNING] API settings for LLM is missing. LLM functionality will be disabled.");
 
                 _ = Task.Run(async () =>
                 {
