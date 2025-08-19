@@ -14,7 +14,7 @@ namespace DlnaAuth
         {
             var requestInfo = context.Features.Get<RequestModel>();
 
-            if (AppInit.conf.accsdb.enable && requestInfo?.user?.group is null)
+            if (AppInit.conf.accsdb.enable)
             {
                 await WriteDenyResponseAsync(context);
                 return false;
