@@ -1,0 +1,9 @@
+{
+  "enable": true,
+  "index": 1,
+  "version": 3,
+  "namespace": "DlnaAuth",
+  "middlewares": "Middlewares",
+  "initspace": "ModInit",
+  "groupsAccess": [ 0, 1 ]
+}
